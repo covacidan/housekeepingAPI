@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: housekeeping2_postgres
+    container_name: housekeeping_postgres
     environment:
       POSTGRES_DB: housekeeping2
       POSTGRES_USER: housekeeping2
@@ -11,7 +9,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - housekeeping_network
+      - housekeeping_net
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U housekeeping2"]
@@ -19,9 +17,9 @@ services:
       timeout: 5s
       retries: 5
 
-  housekeeping2:
+  api:
     build: .
-    container_name: housekeeping2
+    container_name: housekeeping_api
     environment:
       DB_HOST: postgres
       DB_NAME: housekeeping2
@@ -33,12 +31,25 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - housekeeping_network
+      - housekeeping_net
+    restart: unless-stopped
+
+  ui:
+    build: ../housekeepingUI
+    container_name: housekeeping_ui
+    ports:
+      - "8082:80"
+    depends_on:
+      - api
+    networks:
+      - housekeeping_net
     restart: unless-stopped
 
 volumes:
   postgres_data:
+    external: true
+    name: housekeeping2_postgres_data
 
 networks:
-  housekeeping_network:
-    name: housekeeping_network
+  housekeeping_net:
+    name: housekeeping_net

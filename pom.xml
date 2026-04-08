@@ -9,10 +9,10 @@
 		<relativePath/>
 	</parent>
 	<groupId>housekeeping</groupId>
-	<artifactId>housekeeping2</artifactId>
+	<artifactId>housekeepingAPI</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>housekeeping2</name>
-	<description>Housekeeping water index tracker - refactored with PostgreSQL</description>
+	<name>housekeepingAPI</name>
+	<description>Housekeeping water index API - Spring Boot + PostgreSQL</description>
 	<packaging>jar</packaging>
 	<properties>
 		<java.version>17</java.version>
