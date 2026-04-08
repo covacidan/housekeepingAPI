@@ -11,7 +11,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - housekeeping2_net
+      - housekeeping_network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U housekeeping2"]
@@ -33,11 +33,12 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - housekeeping2_net
+      - housekeeping_network
     restart: unless-stopped
 
 volumes:
   postgres_data:
 
 networks:
-  housekeeping2_net:
+  housekeeping_network:
+    name: housekeeping_network
