@@ -1,9 +1,0 @@
-configuration-as-code
-git
-pipeline-model-definition
-workflow-aggregator
-credentials
-credentials-binding
-junit
-docker-workflow
-job-dsl
