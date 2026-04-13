@@ -55,4 +55,5 @@ volumes:
 
 networks:
   housekeeping_net:
+    external: true
     name: housekeeping_net
