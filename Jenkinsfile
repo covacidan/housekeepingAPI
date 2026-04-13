@@ -34,7 +34,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh './mvnw sonar:sonar -Dsonar.projectKey=housekeeping-api -Dsonar.projectName="Housekeeping API"'
+                    sh './mvnw sonar:sonar -Dsonar.projectKey=housekeeping-api -Dsonar.projectName="Housekeeping API" -Dsonar.token=$SONAR_AUTH_TOKEN'
                 }
             }
         }
