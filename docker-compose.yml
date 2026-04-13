@@ -50,8 +50,6 @@ services:
 
 volumes:
   postgres_data:
-    external: true
-    name: housekeeping2_postgres_data
 
 networks:
   housekeeping_net:

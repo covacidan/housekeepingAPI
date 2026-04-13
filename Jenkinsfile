@@ -34,15 +34,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh './mvnw sonar:sonar -Dsonar.projectKey=housekeeping-api -Dsonar.projectName="Housekeeping API" -Dsonar.token=$SONAR_AUTH_TOKEN'
-                }
-            }
-        }
-
-        stage('Quality Gate') {
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
+                    sh './mvnw sonar:sonar -Dsonar.projectKey=housekeeping-api -Dsonar.projectName="Housekeeping API" -Dsonar.token=$SONAR_AUTH_TOKEN -Dsonar.qualitygate.wait=true'
                 }
             }
         }
@@ -70,7 +62,7 @@ pipeline {
                         export JWT_SECRET=\$JWT_SECRET
                         export ADMIN_EMAIL=\$ADMIN_EMAIL
                         export ADMIN_PASSWORD=\$ADMIN_PASSWORD
-                        docker compose -f ${COMPOSE_FILE} up -d --no-deps api
+                        docker compose -f ${COMPOSE_FILE} up -d api
                     """
                 }
             }
