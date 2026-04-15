@@ -14,6 +14,12 @@ pipeline {
             }
         }
 
+        stage('Set Version') {
+            steps {
+                sh "./mvnw versions:set -DnewVersion=1.0.${BUILD_NUMBER} -DgenerateBackupPoms=false"
+            }
+        }
+
         stage('Test') {
             steps {
                 sh './mvnw test -Dspring.profiles.active=test'
