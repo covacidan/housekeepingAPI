@@ -40,7 +40,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh './mvnw sonar:sonar -Dsonar.projectKey=housekeeping-api -Dsonar.projectName="Housekeeping API" -Dsonar.token=$SONAR_AUTH_TOKEN -Dsonar.qualitygate.wait=true'
+                    sh "./mvnw sonar:sonar -Dsonar.projectKey=housekeeping-api -Dsonar.projectName=\"Housekeeping API\" -Dsonar.projectVersion=1.0.${BUILD_NUMBER} -Dsonar.token=\$SONAR_AUTH_TOKEN -Dsonar.qualitygate.wait=true"
                 }
             }
         }
