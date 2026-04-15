@@ -1,36 +1,33 @@
 package housekeeping.tineretului.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import housekeeping.tineretului.dto.LoginRequest;
-import housekeeping.tineretului.model.Role;
-import housekeeping.tineretului.model.User;
-import housekeeping.tineretului.security.JwtAuthFilter;
-import housekeeping.tineretului.security.JwtUtil;
-import housekeeping.tineretului.service.UserService;
+import housekeeping.tineretului.dto.UserRequest;
+import housekeeping.tineretului.dto.UserResponse;
+import housekeeping.tineretului.service.KeycloakAdminService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityFilterAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.Optional;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(
     controllers = AuthController.class,
-    excludeAutoConfiguration = {SecurityAutoConfiguration.class, SecurityFilterAutoConfiguration.class},
-    excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthFilter.class)
+    excludeAutoConfiguration = {
+        SecurityAutoConfiguration.class,
+        SecurityFilterAutoConfiguration.class,
+        OAuth2ResourceServerAutoConfiguration.class
+    }
 )
 class AuthControllerTest {
 
@@ -41,78 +38,47 @@ class AuthControllerTest {
     private ObjectMapper objectMapper;
 
     @MockBean
-    private UserService userService;
-
-    @MockBean
-    private JwtUtil jwtUtil;
-
-    @MockBean
-    private UserDetailsService userDetailsService;
-
-    @MockBean
-    private PasswordEncoder passwordEncoder;
-
+    private KeycloakAdminService keycloakAdminService;
 
     @Test
-    void login_returnsTokenOnValidCredentials() throws Exception {
-        User user = new User();
-        user.setEmail("admin@test.com");
-        user.setPassword("hashed");
-        user.setRole(Role.ADMIN);
+    void getUsers_returnsUserList() throws Exception {
+        when(keycloakAdminService.findAll()).thenReturn(List.of(
+                new UserResponse("uuid-1", "admin@test.com", "ADMIN"),
+                new UserResponse("uuid-2", "user@test.com",  "RECORDER")
+        ));
 
-        org.springframework.security.core.userdetails.User userDetails =
-                new org.springframework.security.core.userdetails.User(
-                        "admin@test.com", "hashed", java.util.Collections.emptyList());
-
-        when(userService.findByEmail("admin@test.com")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("password", "hashed")).thenReturn(true);
-        when(userDetailsService.loadUserByUsername("admin@test.com")).thenReturn(userDetails);
-        when(jwtUtil.generateToken(any(), any())).thenReturn("mock-jwt-token");
-
-        LoginRequest req = new LoginRequest();
-        req.setEmail("admin@test.com");
-        req.setPassword("password");
-
-        mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
+        mockMvc.perform(get("/auth/users"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.token").value("mock-jwt-token"))
-                .andExpect(jsonPath("$.email").value("admin@test.com"))
-                .andExpect(jsonPath("$.role").value("ADMIN"));
+                .andExpect(jsonPath("$[0].email").value("admin@test.com"))
+                .andExpect(jsonPath("$[0].role").value("ADMIN"))
+                .andExpect(jsonPath("$[1].email").value("user@test.com"));
     }
 
     @Test
-    void login_returns401WhenUserNotFound() throws Exception {
-        when(userService.findByEmail(any())).thenReturn(Optional.empty());
+    void createUser_returns201WithUserResponse() throws Exception {
+        UserRequest req = new UserRequest();
+        req.setEmail("new@test.com");
+        req.setPassword("secret");
+        req.setRole("RECORDER");
 
-        LoginRequest req = new LoginRequest();
-        req.setEmail("unknown@test.com");
-        req.setPassword("password");
+        when(keycloakAdminService.createUser(any())).thenReturn(
+                new UserResponse("uuid-3", "new@test.com", "RECORDER"));
 
-        mockMvc.perform(post("/auth/login")
+        mockMvc.perform(post("/auth/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.email").value("new@test.com"))
+                .andExpect(jsonPath("$.role").value("RECORDER"));
     }
 
     @Test
-    void login_returns401OnWrongPassword() throws Exception {
-        User user = new User();
-        user.setEmail("admin@test.com");
-        user.setPassword("hashed");
-        user.setRole(Role.ADMIN);
+    void deleteUser_returns204() throws Exception {
+        doNothing().when(keycloakAdminService).deleteUser("uuid-1");
 
-        when(userService.findByEmail("admin@test.com")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("wrong", "hashed")).thenReturn(false);
+        mockMvc.perform(delete("/auth/users/uuid-1"))
+                .andExpect(status().isNoContent());
 
-        LoginRequest req = new LoginRequest();
-        req.setEmail("admin@test.com");
-        req.setPassword("wrong");
-
-        mockMvc.perform(post("/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isUnauthorized());
+        verify(keycloakAdminService).deleteUser("uuid-1");
     }
 }

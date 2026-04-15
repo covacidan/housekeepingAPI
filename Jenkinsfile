@@ -48,21 +48,19 @@ pipeline {
         stage('Deploy') {
             steps {
                 withCredentials([
-                    string(credentialsId: 'DB_USER',        variable: 'DB_USER'),
-                    string(credentialsId: 'DB_PASSWORD',    variable: 'DB_PASSWORD'),
-                    string(credentialsId: 'DB_NAME',        variable: 'DB_NAME'),
-                    string(credentialsId: 'JWT_SECRET',     variable: 'JWT_SECRET'),
-                    string(credentialsId: 'ADMIN_EMAIL',    variable: 'ADMIN_EMAIL'),
-                    string(credentialsId: 'ADMIN_PASSWORD', variable: 'ADMIN_PASSWORD')
+                    string(credentialsId: 'DB_USER',                variable: 'DB_USER'),
+                    string(credentialsId: 'DB_PASSWORD',            variable: 'DB_PASSWORD'),
+                    string(credentialsId: 'DB_NAME',                variable: 'DB_NAME'),
+                    string(credentialsId: 'KEYCLOAK_ADMIN_USER',    variable: 'KEYCLOAK_ADMIN_USER'),
+                    string(credentialsId: 'KEYCLOAK_ADMIN_PASSWORD',variable: 'KEYCLOAK_ADMIN_PASSWORD')
                 ]) {
                     sh """
                         export DB_USER=\$DB_USER
                         export DB_PASSWORD=\$DB_PASSWORD
                         export DB_NAME=\$DB_NAME
-                        export JWT_SECRET=\$JWT_SECRET
-                        export ADMIN_EMAIL=\$ADMIN_EMAIL
-                        export ADMIN_PASSWORD=\$ADMIN_PASSWORD
-                        docker compose -f ${COMPOSE_FILE} up -d api
+                        export KEYCLOAK_ADMIN_USER=\$KEYCLOAK_ADMIN_USER
+                        export KEYCLOAK_ADMIN_PASSWORD=\$KEYCLOAK_ADMIN_PASSWORD
+                        docker compose -f ${COMPOSE_FILE} up -d keycloak api
                     """
                 }
             }

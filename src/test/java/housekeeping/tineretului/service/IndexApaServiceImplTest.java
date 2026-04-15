@@ -3,7 +3,6 @@ package housekeeping.tineretului.service;
 import housekeeping.tineretului.dto.IndexTotal;
 import housekeeping.tineretului.model.IndexApa;
 import housekeeping.tineretului.repository.IndexApaRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -18,7 +17,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,7 +28,7 @@ class IndexApaServiceImplTest {
     @InjectMocks
     private IndexApaServiceImpl service;
 
-    private IndexApa record(long id, int year, int month, double val) {
+    private IndexApa buildRecord(long id, int year, int month, double val) {
         IndexApa r = new IndexApa();
         r.setId(id);
         r.setAn(year);
@@ -58,8 +56,8 @@ class IndexApaServiceImplTest {
 
     @Test
     void createIndexApa_savesAndReturnsRecord() {
-        IndexApa input = record(0, 2025, 3, 100.0);
-        IndexApa saved = record(1, 2025, 3, 100.0);
+        IndexApa input = buildRecord(0, 2025, 3, 100.0);
+        IndexApa saved = buildRecord(1, 2025, 3, 100.0);
         when(indexApaRepository.save(input)).thenReturn(saved);
 
         IndexApa result = service.createIndexApa(input);
@@ -70,7 +68,7 @@ class IndexApaServiceImplTest {
 
     @Test
     void updateIndexApa_throwsWhenNotFound() {
-        IndexApa input = record(99, 2025, 3, 100.0);
+        IndexApa input = buildRecord(99, 2025, 3, 100.0);
         when(indexApaRepository.existsById(99L)).thenReturn(false);
 
         assertThatThrownBy(() -> service.updateIndexApa(input))
@@ -79,7 +77,7 @@ class IndexApaServiceImplTest {
 
     @Test
     void updateIndexApa_savesWhenFound() {
-        IndexApa input = record(1, 2025, 3, 100.0);
+        IndexApa input = buildRecord(1, 2025, 3, 100.0);
         when(indexApaRepository.existsById(1L)).thenReturn(true);
         when(indexApaRepository.save(input)).thenReturn(input);
 
@@ -115,8 +113,8 @@ class IndexApaServiceImplTest {
 
     @Test
     void getTotal_calculatesCorrectDeltas() {
-        IndexApa prev = record(1, 2025, 2, 100.0);
-        IndexApa curr = record(2, 2025, 3, 110.0);
+        IndexApa prev = buildRecord(1, 2025, 2, 100.0);
+        IndexApa curr = buildRecord(2, 2025, 3, 110.0);
         when(indexApaRepository.findAll()).thenReturn(new ArrayList<>(List.of(prev, curr)));
 
         IndexTotal total = service.getTotal();
@@ -130,8 +128,8 @@ class IndexApaServiceImplTest {
     @Test
     void getTotal_sortsRecordsByYearAndMonth() {
         // Records out of order — service must sort before computing delta
-        IndexApa march = record(2, 2025, 3, 110.0);
-        IndexApa feb   = record(1, 2025, 2, 100.0);
+        IndexApa march = buildRecord(2, 2025, 3, 110.0);
+        IndexApa feb   = buildRecord(1, 2025, 2, 100.0);
         when(indexApaRepository.findAll()).thenReturn(new ArrayList<>(List.of(march, feb)));
 
         IndexTotal total = service.getTotal();
