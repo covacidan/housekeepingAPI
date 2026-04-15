@@ -3,6 +3,7 @@ package housekeeping.tineretului.service;
 import housekeeping.tineretului.dto.UserRequest;
 import housekeeping.tineretului.dto.UserResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -10,12 +11,20 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class KeycloakAdminService {
 
-    private static final String ADMIN_CLI = "admin-cli";
+    private static final String ADMIN_CLI     = "admin-cli";
+    private static final String ADMIN_REALMS  = "/admin/realms/";
+    private static final String USERS_PATH    = "/users/";
+    private static final String RECORDER_ROLE = "RECORDER";
+    private static final String EMAIL_FIELD   = "email";
+
+    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
+            new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<Map<String, Object>>> LIST_MAP_TYPE =
+            new ParameterizedTypeReference<>() {};
 
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -31,6 +40,10 @@ public class KeycloakAdminService {
     @Value("${keycloak.admin.password}")
     private String adminPassword;
 
+    private String adminRealmPath() {
+        return keycloakUrl + ADMIN_REALMS + realm;
+    }
+
     private String getAdminToken() {
         String tokenUrl = keycloakUrl + "/realms/master/protocol/openid-connect/token";
 
@@ -41,13 +54,14 @@ public class KeycloakAdminService {
                 + "&username=" + adminUsername
                 + "&password=" + adminPassword;
 
-        ResponseEntity<Map> response = restTemplate.postForEntity(
-                tokenUrl, new HttpEntity<>(body, headers), Map.class);
+        ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                tokenUrl, HttpMethod.POST, new HttpEntity<>(body, headers), MAP_TYPE);
 
-        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+        Map<String, Object> responseBody = response.getBody();
+        if (!response.getStatusCode().is2xxSuccessful() || responseBody == null) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to authenticate with Keycloak");
         }
-        return (String) response.getBody().get("access_token");
+        return (String) responseBody.get("access_token");
     }
 
     private HttpHeaders bearer(String token) {
@@ -57,50 +71,45 @@ public class KeycloakAdminService {
         return h;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private String getUserRole(String userId, String token) {
-        String url = keycloakUrl + "/admin/realms/" + realm + "/users/" + userId + "/role-mappings/realm";
-        ResponseEntity<List> response = restTemplate.exchange(
-                url, HttpMethod.GET, new HttpEntity<>(bearer(token)), List.class);
+        String url = adminRealmPath() + USERS_PATH + userId + "/role-mappings/realm";
+        ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                url, HttpMethod.GET, new HttpEntity<>(bearer(token)), LIST_MAP_TYPE);
 
-        if (response.getBody() == null) return "RECORDER";
+        List<Map<String, Object>> body = response.getBody();
+        if (body == null) return RECORDER_ROLE;
 
-        for (Object raw : response.getBody()) {
-            if (!(raw instanceof Map)) continue;
-            Map<String, Object> role = (Map<String, Object>) raw;
+        for (Map<String, Object> role : body) {
             String name = (String) role.get("name");
-            if ("ADMIN".equals(name) || "RECORDER".equals(name)) return name;
+            if ("ADMIN".equals(name) || RECORDER_ROLE.equals(name)) return name;
         }
-        return "RECORDER";
+        return RECORDER_ROLE;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public List<UserResponse> findAll() {
         String token = getAdminToken();
-        String url = keycloakUrl + "/admin/realms/" + realm + "/users?max=200";
-        ResponseEntity<List> response = restTemplate.exchange(
-                url, HttpMethod.GET, new HttpEntity<>(bearer(token)), List.class);
+        String url = adminRealmPath() + "/users?max=200";
+        ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
+                url, HttpMethod.GET, new HttpEntity<>(bearer(token)), LIST_MAP_TYPE);
 
-        if (response.getBody() == null) return Collections.emptyList();
+        List<Map<String, Object>> body = response.getBody();
+        if (body == null) return Collections.emptyList();
 
         List<UserResponse> result = new ArrayList<>();
-        for (Object raw : response.getBody()) {
-            if (!(raw instanceof Map)) continue;
-            Map<String, Object> u = (Map<String, Object>) raw;
+        for (Map<String, Object> u : body) {
             String id    = (String) u.get("id");
-            String email = u.get("email") != null ? (String) u.get("email") : (String) u.get("username");
+            String email = u.get(EMAIL_FIELD) != null ? (String) u.get(EMAIL_FIELD) : (String) u.get("username");
             result.add(new UserResponse(id, email, getUserRole(id, token)));
         }
         return result;
     }
 
-    @SuppressWarnings("unchecked")
     public UserResponse createUser(UserRequest request) {
         String token = getAdminToken();
 
         Map<String, Object> userRep = new LinkedHashMap<>();
         userRep.put("username", request.getEmail());
-        userRep.put("email", request.getEmail());
+        userRep.put(EMAIL_FIELD, request.getEmail());
         userRep.put("enabled", true);
         userRep.put("emailVerified", true);
         userRep.put("credentials", List.of(Map.of(
@@ -110,7 +119,7 @@ public class KeycloakAdminService {
 
         try {
             ResponseEntity<Void> created = restTemplate.postForEntity(
-                    keycloakUrl + "/admin/realms/" + realm + "/users",
+                    adminRealmPath() + "/users",
                     new HttpEntity<>(userRep, bearer(token)), Void.class);
 
             String location = created.getHeaders().getFirst(HttpHeaders.LOCATION);
@@ -119,20 +128,20 @@ public class KeycloakAdminService {
             }
             String userId = location.substring(location.lastIndexOf('/') + 1);
 
-            // Fetch role representation then assign it
             String roleName = request.getRole().toUpperCase();
-            ResponseEntity<Map> roleRep = restTemplate.exchange(
-                    keycloakUrl + "/admin/realms/" + realm + "/roles/" + roleName,
-                    HttpMethod.GET, new HttpEntity<>(bearer(token)), Map.class);
+            ResponseEntity<Map<String, Object>> roleRep = restTemplate.exchange(
+                    adminRealmPath() + "/roles/" + roleName,
+                    HttpMethod.GET, new HttpEntity<>(bearer(token)), MAP_TYPE);
 
-            if (roleRep.getBody() == null) {
+            Map<String, Object> roleBody = roleRep.getBody();
+            if (roleBody == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Role not found: " + roleName);
             }
 
             restTemplate.exchange(
-                    keycloakUrl + "/admin/realms/" + realm + "/users/" + userId + "/role-mappings/realm",
+                    adminRealmPath() + USERS_PATH + userId + "/role-mappings/realm",
                     HttpMethod.POST,
-                    new HttpEntity<>(List.of(roleRep.getBody()), bearer(token)),
+                    new HttpEntity<>(List.of(roleBody), bearer(token)),
                     Void.class);
 
             return new UserResponse(userId, request.getEmail(), roleName);
@@ -146,7 +155,7 @@ public class KeycloakAdminService {
         String token = getAdminToken();
         try {
             restTemplate.exchange(
-                    keycloakUrl + "/admin/realms/" + realm + "/users/" + id,
+                    adminRealmPath() + USERS_PATH + id,
                     HttpMethod.DELETE, new HttpEntity<>(bearer(token)), Void.class);
         } catch (HttpClientErrorException.NotFound e) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");

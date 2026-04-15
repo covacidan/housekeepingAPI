@@ -14,6 +14,8 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    private static final String ADMIN_ROLE = "ADMIN";
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -22,9 +24,9 @@ public class SecurityConfig {
             .httpBasic(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/users/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.PUT,    "/housekeeping/waterIndex").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/housekeeping/waterIndex/**").hasRole("ADMIN")
+                .requestMatchers("/auth/users/**").hasRole(ADMIN_ROLE)
+                .requestMatchers(HttpMethod.PUT,    "/housekeeping/waterIndex").hasRole(ADMIN_ROLE)
+                .requestMatchers(HttpMethod.DELETE, "/housekeeping/waterIndex/**").hasRole(ADMIN_ROLE)
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())));
