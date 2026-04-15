@@ -2,7 +2,7 @@ package housekeeping.tineretului.model;
 
 import lombok.Data;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.time.LocalDate;
 
 @Data
