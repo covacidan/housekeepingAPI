@@ -50,6 +50,7 @@ services:
 
   api:
     build: .
+    image: housekeeping-api:latest
     container_name: housekeeping_api
     environment:
       DB_HOST: postgres
