@@ -53,20 +53,35 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'DB_USER',                variable: 'DB_USER'),
-                    string(credentialsId: 'DB_PASSWORD',            variable: 'DB_PASSWORD'),
-                    string(credentialsId: 'DB_NAME',                variable: 'DB_NAME'),
-                    string(credentialsId: 'KEYCLOAK_ADMIN_USER',    variable: 'KEYCLOAK_ADMIN_USER'),
-                    string(credentialsId: 'KEYCLOAK_ADMIN_PASSWORD',variable: 'KEYCLOAK_ADMIN_PASSWORD')
-                ]) {
+                // Fetch all secrets at runtime from Vault — no static credentials here.
+                //
+                // database/creds/jenkins-deploy: short-lived dynamic PG credentials
+                //   (auto-rotated by Vault, TTL controlled by vault/database.tf)
+                //
+                // kv/housekeeping/api-approle: the API container's own Vault AppRole
+                //   credentials — the running container uses these to fetch its own
+                //   dynamic DB credentials on startup.
+                withVault(
+                    configuration: [vaultCredentialId: 'vault-approle'],
+                    vaultSecrets: [
+                        [path: 'database/creds/jenkins-deploy', engineVersion: 1, secretValues: [
+                            [envVar: 'DB_USER',     vaultKey: 'username'],
+                            [envVar: 'DB_PASSWORD', vaultKey: 'password']
+                        ]],
+                        [path: 'kv/housekeeping/api-approle', engineVersion: 2, secretValues: [
+                            [envVar: 'VAULT_ROLE_ID',   vaultKey: 'role_id'],
+                            [envVar: 'VAULT_SECRET_ID', vaultKey: 'secret_id'],
+                            [envVar: 'VAULT_ADDR',      vaultKey: 'vault_addr']
+                        ]],
+                        [path: 'kv/housekeeping/keycloak', engineVersion: 2, secretValues: [
+                            [envVar: 'KEYCLOAK_ADMIN_USER',     vaultKey: 'admin_user'],
+                            [envVar: 'KEYCLOAK_ADMIN_PASSWORD', vaultKey: 'admin_password']
+                        ]]
+                    ]
+                ) {
                     sh """
-                        export DB_USER=\$DB_USER
-                        export DB_PASSWORD=\$DB_PASSWORD
-                        export DB_NAME=\$DB_NAME
-                        export KEYCLOAK_ADMIN_USER=\$KEYCLOAK_ADMIN_USER
-                        export KEYCLOAK_ADMIN_PASSWORD=\$KEYCLOAK_ADMIN_PASSWORD
-                        docker compose -f ${COMPOSE_FILE} up -d --force-recreate keycloak api
+                        export DB_NAME=\${APP_DB_NAME}
+                        docker compose -f ${COMPOSE_FILE} up -d --force-recreate api
                     """
                 }
             }
