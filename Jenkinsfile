@@ -66,7 +66,7 @@ pipeline {
                         export DB_NAME=\$DB_NAME
                         export KEYCLOAK_ADMIN_USER=\$KEYCLOAK_ADMIN_USER
                         export KEYCLOAK_ADMIN_PASSWORD=\$KEYCLOAK_ADMIN_PASSWORD
-                        docker compose -f ${COMPOSE_FILE} up -d keycloak api
+                        docker compose -f ${COMPOSE_FILE} up -d --force-recreate keycloak api
                     """
                 }
             }
