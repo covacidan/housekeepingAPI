@@ -1,73 +1,32 @@
+# housekeepingAPI/docker-compose.yml
+#
+# This file manages ONLY the application containers (api + ui).
+# PostgreSQL and Keycloak are provisioned by Terraform (housekeepingTF).
+# Run `make apply` in housekeepingTF/environments/dev before starting these.
+
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: housekeeping_postgres
-    environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - housekeeping_net
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0
-    container_name: housekeeping_keycloak
-    command: start-dev --import-realm
-    environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-      KC_HOSTNAME_STRICT: "false"
-      KC_HTTP_ENABLED: "true"
-      KC_HEALTH_ENABLED: "true"
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
-      KC_DB_USERNAME: ${DB_USER}
-      KC_DB_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "8180:8080"
-    volumes:
-      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - housekeeping_net
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 90s
-
   api:
     build: .
     image: housekeeping-api:latest
     container_name: housekeeping_api
     environment:
-      DB_HOST: postgres
+      DB_HOST: housekeeping_postgres
       DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      KEYCLOAK_HOST: keycloak
+      # DB credentials are fetched from Vault by the API at startup via AppRole.
+      # Set VAULT_ADDR, VAULT_ROLE_ID, VAULT_SECRET_ID to enable dynamic creds.
+      # Fallback static credentials below are used when Vault is not configured.
+      DB_USER: ${DB_USER:-}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      KEYCLOAK_HOST: housekeeping_keycloak
       KEYCLOAK_PORT: 8080
-      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Vault AppRole credentials (Phase 2 — after Vault integration in the API)
+      VAULT_ADDR: ${VAULT_ADDR:-http://housekeeping_vault:8200}
+      VAULT_ROLE_ID: ${VAULT_ROLE_ID:-}
+      VAULT_SECRET_ID: ${VAULT_SECRET_ID:-}
     ports:
       - "8081:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      keycloak:
-        condition: service_healthy
     networks:
       - housekeeping_net
     restart: unless-stopped
@@ -82,9 +41,6 @@ services:
     networks:
       - housekeeping_net
     restart: unless-stopped
-
-volumes:
-  postgres_data:
 
 networks:
   housekeeping_net:
